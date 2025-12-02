@@ -1,20 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { LayoutDashboard, Settings, Upload, CreditCard, RefreshCw, MessageSquare } from 'lucide-react';
-import FileUpload from './components/FileUpload';
-import TransactionTable from './components/TransactionTable';
-import ChatInterface from './components/ChatInterface';
-import CategoryManager from './components/CategoryManager';
-import TransferReview from './components/TransferReview';
+import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
+import { LayoutDashboard, Settings, Calculator } from 'lucide-react';
+import Dashboard from './components/Dashboard';
+import BudgetPlanner from './components/BudgetPlanner';
 
 // Configure axios base URL for development
 // In production, this would be handled by Nginx or similar
 axios.defaults.baseURL = 'http://localhost:8000';
 
-function App() {
+function AppContent() {
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(false);
   const [llmMode, setLlmMode] = useState("LOADING...");
+  const location = useLocation();
 
   // Filter State
   const [startDate, setStartDate] = useState("");
@@ -84,14 +83,39 @@ function App() {
       {/* Header */}
       <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="bg-blue-600 p-2 rounded-lg">
-              <LayoutDashboard className="w-6 h-6 text-white" />
+          <div className="flex items-center gap-8">
+            <div className="flex items-center gap-2">
+              <div className="bg-blue-600 p-2 rounded-lg">
+                <LayoutDashboard className="w-6 h-6 text-white" />
+              </div>
+              <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600">
+                FinTrackAI
+              </h1>
             </div>
-            <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600">
-              FinTrackAI
-            </h1>
+
+            {/* Navigation */}
+            <nav className="hidden md:flex space-x-4">
+              <Link
+                to="/"
+                className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${location.pathname === '/'
+                    ? 'bg-blue-50 text-blue-700'
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                  }`}
+              >
+                Dashboard
+              </Link>
+              <Link
+                to="/budget"
+                className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${location.pathname === '/budget'
+                    ? 'bg-blue-50 text-blue-700'
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                  }`}
+              >
+                Budget Planner
+              </Link>
+            </nav>
           </div>
+
           <div className="flex items-center gap-4">
             <div className="px-3 py-1 bg-gray-100 rounded-full text-xs font-medium text-gray-600 border border-gray-200">
               Running on: <span className="text-blue-600">{llmMode}</span>
@@ -111,113 +135,45 @@ function App() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-
-          {/* Left Column: Upload & Transactions */}
-          <div className="lg:col-span-2 space-y-8">
-
-            {/* Upload Section */}
-            <section>
-              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                <Upload className="w-5 h-5 text-blue-500" />
-                Import Data
-              </h2>
-              <FileUpload onUploadSuccess={handleUploadSuccess} />
-            </section>
-
-            {/* Transactions Section */}
-            <section>
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold flex items-center gap-2">
-                  <CreditCard className="w-5 h-5 text-green-500" />
-                  Recent Transactions
-                </h2>
-                <button
-                  onClick={fetchTransactions}
-                  className="p-2 hover:bg-gray-200 rounded-full transition-colors"
-                  title="Refresh"
-                >
-                  <RefreshCw className={`w-4 h-4 text-gray-500 ${loading ? 'animate-spin' : ''}`} />
-                </button>
+        <Routes>
+          <Route path="/" element={
+            <Dashboard
+              transactions={transactions}
+              loading={loading}
+              fetchTransactions={fetchTransactions}
+              handleUploadSuccess={handleUploadSuccess}
+              startDate={startDate}
+              setStartDate={setStartDate}
+              endDate={endDate}
+              setEndDate={setEndDate}
+              vendorFilter={vendorFilter}
+              setVendorFilter={setVendorFilter}
+              categoryFilter={categoryFilter}
+              setCategoryFilter={setCategoryFilter}
+              categories={categories}
+              handleApplyFilters={handleApplyFilters}
+            />
+          } />
+          <Route path="/budget" element={
+            <div className="max-w-4xl mx-auto">
+              <div className="mb-6">
+                <h2 className="text-2xl font-bold text-gray-900">Budget Planner</h2>
+                <p className="text-gray-500">Plan your monthly spending and track your progress.</p>
               </div>
-
-              {/* Filter Bar */}
-              <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-4 grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Start Date</label>
-                  <input
-                    type="date"
-                    className="w-full text-sm border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                    value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">End Date</label>
-                  <input
-                    type="date"
-                    className="w-full text-sm border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                    value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Vendor</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Uber"
-                    className="w-full text-sm border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                    value={vendorFilter}
-                    onChange={(e) => setVendorFilter(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Category</label>
-                  <select
-                    className="w-full text-sm border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                    value={categoryFilter}
-                    onChange={(e) => setCategoryFilter(e.target.value)}
-                  >
-                    <option value="">All Categories</option>
-                    {categories.map(cat => (
-                      <option key={cat} value={cat}>{cat}</option>
-                    ))}
-                  </select>
-                </div>
-                <button
-                  onClick={handleApplyFilters}
-                  className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium py-2 px-4 rounded-md transition-colors"
-                >
-                  Apply Filters
-                </button>
-              </div>
-
-              <TransactionTable transactions={transactions} loading={loading} />
-            </section>
-          </div>
-
-          {/* Right Column: Chat & Insights */}
-          <div className="lg:col-span-1 space-y-8">
-            <section className="sticky top-24">
-              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                <MessageSquare className="w-5 h-5 text-purple-500" />
-                AI Assistant
-              </h2>
-              <ChatInterface />
-
-              <div className="mt-8">
-                <CategoryManager />
-              </div>
-
-              <div className="mt-8">
-                <TransferReview />
-              </div>
-            </section>
-          </div>
-
-        </div>
+              <BudgetPlanner transactions={transactions} />
+            </div>
+          } />
+        </Routes>
       </main>
     </div>
+  );
+}
+
+function App() {
+  return (
+    <Router>
+      <AppContent />
+    </Router>
   );
 }
 

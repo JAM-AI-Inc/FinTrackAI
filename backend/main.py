@@ -12,7 +12,7 @@ import pandas as pd
 import io
 
 from core.llm import get_llm_provider
-from prompts import DATA_EXTRACTION_PROMPT
+from prompts import DATA_EXTRACTION_PROMPT, COMMAND_INTERPRETER_PROMPT, BUDGET_GENERATION_PROMPT
 from datetime import datetime, timedelta
 from bson import ObjectId
 
@@ -108,11 +108,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# MongoDB
-MONGO_URL = os.getenv("MONGO_URL", "mongodb://localhost:27017")
-client = AsyncIOMotorClient(MONGO_URL)
+# Helper for config (assuming it's defined elsewhere or we need to add it)
+class Config:
+    @staticmethod
+    def get_mongo_url():
+        return os.getenv("MONGO_URL", "mongodb://localhost:27017")
+
+# Database Setup
+client = AsyncIOMotorClient(Config.get_mongo_url())
 db = client.fintrack
 transactions_collection = db.transactions
+budgets_collection = db.budgets
 
 # Models
 class Transaction(BaseModel):
@@ -136,6 +142,17 @@ class LinkRequest(BaseModel):
 
 class UnlinkRequest(BaseModel):
     tx_id: str
+
+class Budget(BaseModel):
+    category: str
+    monthly_limit: float
+    updated_at: Optional[datetime] = None
+
+class BudgetSuggestion(BaseModel):
+    category: str
+    historical_avg: float
+    suggested_limit: float
+    reasoning: str
 
 # Endpoints
 
@@ -309,3 +326,66 @@ async def unlink_transfers(request: UnlinkRequest):
         )
         
     return {"message": "Transactions unlinked successfully"}
+
+async def calculate_category_trends():
+    pipeline = [
+        {"$match": {"type": {"$in": ["expense", "Expense", "debit", "Debit"]}}}, # Ensure we only look at expenses
+        {
+            "$group": {
+                "_id": {
+                    "category": "$category",
+                    "month": {"$substr": ["$date", 0, 7]} # Group by YYYY-MM
+                },
+                "monthly_total": {"$sum": "$amount"}
+            }
+        },
+        {
+            "$group": {
+                "_id": "$_id.category",
+                "avg_spend": {"$avg": "$monthly_total"},
+                "max_spend": {"$min": "$monthly_total"} # Expenses are negative, so min is the largest absolute spend
+            }
+        },
+        {
+            "$project": {
+                "category": "$_id",
+                "avg_spend": {"$abs": "$avg_spend"},
+                "max_spend": {"$abs": "$max_spend"},
+                "_id": 0
+            }
+        }
+    ]
+    return await transactions_collection.aggregate(pipeline).to_list(length=None)
+
+@app.post("/budget/generate", response_model=List[BudgetSuggestion])
+async def generate_budget_suggestions():
+    trends = await calculate_category_trends()
+    
+    if not trends:
+        return []
+
+    # Format for LLM
+    trends_text = str(trends)
+    
+    llm = get_llm_provider()
+    try:
+        suggestions = await llm.extract_data(trends_text, BUDGET_GENERATION_PROMPT)
+        return suggestions
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Budget generation failed: {str(e)}")
+
+@app.get("/budget", response_model=List[Budget])
+async def get_budgets():
+    cursor = budgets_collection.find({})
+    budgets = await cursor.to_list(length=None)
+    return budgets
+
+@app.post("/budget")
+async def save_budget(budget: Budget):
+    budget.updated_at = datetime.now()
+    await budgets_collection.update_one(
+        {"category": budget.category},
+        {"$set": budget.dict()},
+        upsert=True
+    )
+    return {"message": "Budget saved successfully"}

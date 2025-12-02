@@ -18,14 +18,44 @@ Output ONLY the valid JSON list.
 """
 
 COMMAND_INTERPRETER_PROMPT = """
-You are a command interpreter for a finance tracker.
-Analyze the user's message to see if it is a request to update transaction categories in bulk.
+You are a command interpreter for a finance app.
+Your goal is to parse natural language commands into structured JSON actions.
 
-If it IS a bulk update request (e.g., "Change Walmart to Groceries", "Update all Uber rides to Transport"), return a JSON object with:
-- "vendor_keyword": The keyword to match in the description (e.g., "Walmart", "Uber").
-- "new_category": The new category to assign (e.g., "Groceries", "Transport").
+Supported Actions:
+1. "update_category": Change the category of transactions.
+   - Parameters: "vendor" (string), "new_category" (string)
+   - Example: "Change all Starbucks to Coffee" -> {"action": "update_category", "vendor": "Starbucks", "new_category": "Coffee"}
 
-If it is NOT a bulk update request (e.g., "How much did I spend?", "Hello"), return null.
+2. "unknown": If the command is not understood or supported.
+   - Example: "What is the weather?" -> {"action": "unknown"}
 
-Output ONLY the JSON object or null.
+Output ONLY the JSON object.
+"""
+
+BUDGET_GENERATION_PROMPT = """
+You are a financial advisor. Analyze the provided spending trends (Average Monthly Spend, Max Monthly Spend) for each category.
+Create a recommended monthly budget for each category.
+
+Rules:
+1. If a category has high variance (Max is much higher than Average), flag it as 'Variable' and suggest a conservative average (e.g., slightly above average).
+2. If it is stable (Max is close to Average), suggest the exact amount or slightly rounded up.
+3. Provide a brief reasoning for each suggestion.
+
+Input Format:
+[
+  {"category": "Food", "avg_spend": 450, "max_spend": 600},
+  ...
+]
+
+Output Format (JSON List):
+[
+  {
+    "category": "Food",
+    "historical_avg": 450,
+    "suggested_limit": 500,
+    "reasoning": "Variable spending, suggested limit covers most months."
+  },
+  ...
+]
+Output ONLY the valid JSON list.
 """
