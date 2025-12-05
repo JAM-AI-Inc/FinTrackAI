@@ -20,3 +20,7 @@ class Config:
     @staticmethod
     def get_mongo_url() -> str:
         return os.getenv("MONGO_URL", "mongodb://localhost:27017")
+
+    @staticmethod
+    def get_ollama_model() -> str:
+        return os.getenv("OLLAMA_MODEL", "deepseek-r1")

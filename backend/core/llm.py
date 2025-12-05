@@ -65,7 +65,7 @@ class GeminiProvider(LLMProvider):
 class LocalLLMProvider(LLMProvider):
     def __init__(self, base_url: str = "http://localhost:11434"):
         self.base_url = base_url
-        self.model = "llama2" # Default, can be configurable
+        self.model = Config.get_ollama_model()
 
     async def generate_content(self, prompt: str) -> str:
         payload = {

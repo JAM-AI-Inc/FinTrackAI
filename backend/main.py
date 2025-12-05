@@ -154,6 +154,10 @@ class BudgetSuggestion(BaseModel):
     suggested_limit: float
     reasoning: str
 
+class BudgetGenerationResponse(BaseModel):
+    suggestions: List[BudgetSuggestion]
+    estimated_monthly_income: float
+
 # Endpoints
 
 @app.get("/")
@@ -357,20 +361,46 @@ async def calculate_category_trends():
     ]
     return await transactions_collection.aggregate(pipeline).to_list(length=None)
 
-@app.post("/budget/generate", response_model=List[BudgetSuggestion])
+async def calculate_income_trends():
+    pipeline = [
+        {"$match": {"amount": {"$gt": 0}}}, # Positive amounts are income
+        {
+            "$group": {
+                "_id": {
+                    "month": {"$substr": ["$date", 0, 7]} # Group by YYYY-MM
+                },
+                "monthly_total": {"$sum": "$amount"}
+            }
+        },
+        {
+            "$group": {
+                "_id": None,
+                "avg_income": {"$avg": "$monthly_total"}
+            }
+        }
+    ]
+    result = await transactions_collection.aggregate(pipeline).to_list(length=1)
+    return result[0]["avg_income"] if result else 0.0
+
+@app.post("/budget/generate", response_model=BudgetGenerationResponse)
 async def generate_budget_suggestions():
     trends = await calculate_category_trends()
+    avg_income = await calculate_income_trends()
     
     if not trends:
-        return []
+        return BudgetGenerationResponse(suggestions=[], estimated_monthly_income=avg_income)
 
     # Format for LLM
-    trends_text = str(trends)
+    input_data = {
+        "trends": trends,
+        "estimated_monthly_income": avg_income
+    }
+    input_text = str(input_data)
     
     llm = get_llm_provider()
     try:
-        suggestions = await llm.extract_data(trends_text, BUDGET_GENERATION_PROMPT)
-        return suggestions
+        suggestions = await llm.extract_data(input_text, BUDGET_GENERATION_PROMPT)
+        return BudgetGenerationResponse(suggestions=suggestions, estimated_monthly_income=avg_income)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Budget generation failed: {str(e)}")
 

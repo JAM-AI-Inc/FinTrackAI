@@ -33,27 +33,46 @@ Output ONLY the JSON object.
 """
 
 BUDGET_GENERATION_PROMPT = """
-You are a financial advisor. Analyze the provided spending trends (Average Monthly Spend, Max Monthly Spend) for each category.
-Create a recommended monthly budget for each category.
+You are a financial advisor. Create a recommended monthly budget based on the provided spending trends and estimated monthly income.
+
+MANDATORY: You MUST include suggestions for ALL of the following standard categories, even if there is no spending history for them:
+- Housing (Rent/Mortgage)
+- Food (Groceries & Dining)
+- Transport (Car, Gas, Public Transit)
+- Utilities (Electric, Water, Internet)
+- Insurance (Health, Auto, Life)
+- Savings & Investments
+- Entertainment
+- Personal Care
+- Debt Repayment
+- Miscellaneous
 
 Rules:
-1. If a category has high variance (Max is much higher than Average), flag it as 'Variable' and suggest a conservative average (e.g., slightly above average).
-2. If it is stable (Max is close to Average), suggest the exact amount or slightly rounded up.
-3. Provide a brief reasoning for each suggestion.
+1. For categories WITH history: Base the suggestion on the historical average and max spend.
+2. For categories WITHOUT history: Suggest a reasonable amount based on standard financial guidelines (e.g., 50/30/20 rule) applied to the estimated income.
+   - Housing: ~30% of income
+   - Food: ~10-15% of income
+   - Transport: ~10% of income
+   - Savings: ~20% of income
+   - Utilities: ~5-10% of income
+3. Ensure the TOTAL of all suggestions equals the estimated monthly income (Zero-Based Budgeting).
+   - If income is low, prioritize needs (Housing, Food, Utilities).
+   - If income is high, increase Savings/Investments.
+4. Provide a brief reasoning for each suggestion (e.g., "Based on history" or "Standard 30% allocation").
 
 Input Format:
-[
-  {"category": "Food", "avg_spend": 450, "max_spend": 600},
-  ...
-]
+{
+  "trends": [ ... ],
+  "estimated_monthly_income": 5000
+}
 
 Output Format (JSON List):
 [
   {
     "category": "Food",
-    "historical_avg": 450,
+    "historical_avg": 450, // 0 if no history
     "suggested_limit": 500,
-    "reasoning": "Variable spending, suggested limit covers most months."
+    "reasoning": "Based on history..."
   },
   ...
 ]
